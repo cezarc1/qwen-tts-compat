@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qwen-tts"
-version = "0.1.1"
-description = "Qwen-TTS python package"
+name = "qwen-tts-compat"
+version = "0.1.1.post1"
+description = "Unofficial Qwen3-TTS fork with Transformers 5.x compatibility"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
@@ -20,8 +20,10 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "Alibaba Qwen Team" }]
 
 dependencies = [
-  "transformers==4.57.3",
-  "accelerate==1.12.0",
+  # Upstream pins ==4.57.3; the shims in qwen_tts/core/_compat.py span 4.57.x
+  # and 5.x, so the pin is relaxed to allow co-installation with Qwen3-ASR.
+  "transformers>=4.57.3,<6",
+  "accelerate>=1.12.0",
   "gradio",
   "librosa",
   "torchaudio",
@@ -32,8 +34,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Qwen/Qwen3-TTS"
-Repository = "https://github.com/Qwen/Qwen3-TTS"
+# Upstream points at github.com/Qwen/Qwen3-TTS, which does not exist.
+Homepage = "https://github.com/QwenLM/Qwen3-TTS"
+Repository = "https://github.com/QwenLM/Qwen3-TTS"
 
 [project.scripts]
 qwen-tts-demo = "qwen_tts.cli.demo:main"

@@ -1,3 +1,67 @@
+> ## ⚠️ Unofficial fork — Transformers 5.x compatibility
+>
+> **Status: work in progress — not yet usable under Transformers 5.x.** Four of
+> the eight required fixes are in place. The Verification section below describes
+> the target, and its claims are reproduced from a separate reference port; they
+> have not yet been re-measured against *this* tree. Do not use this fork until
+> this notice is removed.
+>
+> This is **not** the official Qwen3-TTS repository. It is a community fork whose
+> only purpose is to make Qwen3-TTS run on **Transformers 5.x**, while remaining
+> compatible with 4.57.x. The official repository is
+> [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS); this fork claims no
+> affiliation with or endorsement by Alibaba or the Qwen team.
+>
+> ### Why this fork exists
+>
+> Upstream `qwen-tts` hard-pins `transformers==4.57.3`. Its vendored modeling code
+> is written against Transformers' *internal* model-authoring API, and eight of
+> those internals changed in 5.x — so the package cannot be installed alongside
+> anything that needs Transformers 5.x (notably **Qwen3-ASR**), and importing it
+> under 5.x fails outright.
+>
+> Upstream appears to have stalled on this. As of July 2026:
+>
+> * the last commit touching inference code is **2026-02-06**, the same day
+>   `qwen-tts` 0.1.1 was published to PyPI; the last commit of any kind is
+>   2026-03-17
+> * of 52 pull requests, **one** community PR has ever been merged
+> * [PR #157](https://github.com/QwenLM/Qwen3-TTS/pull/157) — a two-line
+>   relaxation of the `transformers` pin — has been open since 2026-02-01
+> * [#156](https://github.com/QwenLM/Qwen3-TTS/issues/156) and
+>   [#237](https://github.com/QwenLM/Qwen3-TTS/issues/237), which report exactly
+>   this problem, were closed by a staleness bot rather than fixed
+>
+> Those are the facts that prompted the fork; draw your own conclusions about the
+> project's status. Everything here is offered upstream — if these changes land,
+> this fork should be deleted.
+>
+> ### What changed
+>
+> * `transformers` pin relaxed to `>=4.57.3,<6`
+> * compatibility shims for the Transformers 5.x internals, in
+>   [`qwen_tts/core/_compat.py`](qwen_tts/core/_compat.py); every helper is a
+>   pass-through on 4.57.x, so **4.x behaviour is unchanged**
+> * `project.urls` corrected (upstream points at a repository that does not exist)
+>
+> The import package is still `qwen_tts`, so this is a drop-in replacement.
+>
+> ### Verification
+>
+> Correctness is measured, not assumed: identical text, reference clip and seed are
+> synthesized under 4.57.3 and 5.14.1 and compared sample-by-sample. On Apple MPS
+> the output is **bit-identical**; on CUDA it matches to within bfloat16 kernel
+> nondeterminism, under both SDPA and FlashAttention 2.
+>
+> ### Known issue: Transformers 5.x + Apple MPS
+>
+> Unrelated to this fork — Transformers 5.x loads weights through a thread pool
+> (`core_model_loading.GLOBAL_WORKERS`, hardcoded, no environment variable). On
+> MPS the concurrent per-tensor `.to(device, dtype)` casts contend inside
+> PyTorch's Metal shader cache and the load livelocks. Setting that value to `1`
+> takes a stalled load to under a second. Affects any model on Apple Silicon, not
+> just this one.
+
 # Qwen3-TTS
 
 <br>

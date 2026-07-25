@@ -29,20 +29,19 @@ from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationMixin
 from transformers.integrations import use_kernel_forward_from_hub
-from transformers.masking_utils import (create_causal_mask,
-                                        create_sliding_window_causal_mask)
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_layers import GradientCheckpointingLayer
 from transformers.modeling_outputs import (BaseModelOutputWithPast,
                                            CausalLMOutputWithPast, ModelOutput)
-from transformers.modeling_rope_utils import (ROPE_INIT_FUNCTIONS,
-                                              dynamic_rope_update)
+from transformers.modeling_rope_utils import dynamic_rope_update
 from transformers.modeling_utils import (ALL_ATTENTION_FUNCTIONS,
                                          PreTrainedModel)
 from transformers.processing_utils import Unpack
 from transformers.utils import can_return_tuple, logging
 from transformers.utils.hub import cached_file
 
+from .._compat import (create_causal_mask, create_sliding_window_causal_mask,
+                       ensure_cache_position, pad_token_id_of, rope_init_fn)
 from ...inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
 from .configuration_qwen3_tts import (Qwen3TTSConfig,
                                       Qwen3TTSSpeakerEncoderConfig,
@@ -535,7 +534,7 @@ class Qwen3TTSTalkerRotaryEmbedding(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = rope_init_fn(self.rope_type)
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -570,7 +569,7 @@ class Qwen3TTSRotaryEmbedding(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = rope_init_fn(self.rope_type)
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -1018,7 +1017,7 @@ class Qwen3TTSTalkerCodePredictorModel(Qwen3TTSPreTrainedModel):
 
     def __init__(self, config: Qwen3TTSTalkerCodePredictorConfig, embedding_dim: int):
         super().__init__(config)
-        self.padding_idx = config.pad_token_id
+        self.padding_idx = pad_token_id_of(config)
         self.vocab_size = config.vocab_size
         self.layers = nn.ModuleList(
             [Qwen3TTSDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
@@ -1430,7 +1429,7 @@ class Qwen3TTSTalkerModel(Qwen3TTSTalkerTextPreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self.padding_idx = config.pad_token_id
+        self.padding_idx = pad_token_id_of(config)
         self.vocab_size = config.vocab_size
         self.layers = nn.ModuleList(
             [Qwen3TTSTalkerDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
@@ -1690,6 +1689,14 @@ class Qwen3TTSTalkerForConditionalGeneration(Qwen3TTSTalkerTextPreTrainedModel, 
                 inputs_embeds = inputs_embeds + trailing_text_hidden[:, generation_step].unsqueeze(1)
             else:
                 inputs_embeds = inputs_embeds + tts_pad_embed
+        # Transformers 5.x stops passing `cache_position`; without it the decode
+        # branch below is never taken and RoPE is rebuilt over the whole sequence.
+        cache_position = ensure_cache_position(
+            cache_position,
+            past_key_values,
+            length=inputs_embeds.shape[1],
+            device=inputs_embeds.device,
+        )
         if attention_mask is not None:
             if (
                 cache_position is None
