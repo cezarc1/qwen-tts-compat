@@ -29,20 +29,19 @@ from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.generation import GenerationMixin
 from transformers.integrations import use_kernel_forward_from_hub
-from transformers.masking_utils import (create_causal_mask,
-                                        create_sliding_window_causal_mask)
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_layers import GradientCheckpointingLayer
 from transformers.modeling_outputs import (BaseModelOutputWithPast,
                                            CausalLMOutputWithPast, ModelOutput)
-from transformers.modeling_rope_utils import (ROPE_INIT_FUNCTIONS,
-                                              dynamic_rope_update)
+from transformers.modeling_rope_utils import dynamic_rope_update
 from transformers.modeling_utils import (ALL_ATTENTION_FUNCTIONS,
                                          PreTrainedModel)
 from transformers.processing_utils import Unpack
 from transformers.utils import can_return_tuple, logging
 from transformers.utils.hub import cached_file
 
+from .._compat import (create_causal_mask, create_sliding_window_causal_mask,
+                       pad_token_id_of, rope_init_fn)
 from ...inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
 from .configuration_qwen3_tts import (Qwen3TTSConfig,
                                       Qwen3TTSSpeakerEncoderConfig,
@@ -50,10 +49,6 @@ from .configuration_qwen3_tts import (Qwen3TTSConfig,
                                       Qwen3TTSTalkerConfig)
 
 logger = logging.get_logger(__name__)
-
-
-if "default" not in ROPE_INIT_FUNCTIONS and "proportional" in ROPE_INIT_FUNCTIONS:
-    ROPE_INIT_FUNCTIONS["default"] = ROPE_INIT_FUNCTIONS["proportional"]
 
 
 def download_weights_from_hf_specific(
@@ -539,7 +534,7 @@ class Qwen3TTSTalkerRotaryEmbedding(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = rope_init_fn(self.rope_type)
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -590,7 +585,7 @@ class Qwen3TTSRotaryEmbedding(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = rope_init_fn(self.rope_type)
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -1136,6 +1131,7 @@ class Qwen3TTSTalkerCodePredictorModel(Qwen3TTSPreTrainedModel):
                 "inputs_embeds": inputs_embeds,
                 "attention_mask": attention_mask,
                 "past_key_values": past_key_values,
+                "cache_position": cache_position,
             }
             # Create the masks
             causal_mask_mapping = {
@@ -1553,6 +1549,7 @@ class Qwen3TTSTalkerModel(Qwen3TTSTalkerTextPreTrainedModel):
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             past_key_values=past_key_values,
+            cache_position=cache_position,
             position_ids=text_position_ids,
         )
 

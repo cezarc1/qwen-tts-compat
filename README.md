@@ -1,40 +1,18 @@
-> ## ⚠️ Unofficial fork — requires Transformers 5.x
+> ## ⚠️ Unofficial fork — Adds support for Transformers 5.x
 >
 > Not the official repository; that is
-> [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS). No affiliation with or
-> endorsement by Alibaba or the Qwen team.
+> [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS). No affiliation with the Alibaba or the Qwen team.
 >
 > Upstream `qwen-tts` hard-pins `transformers==4.57.3`, so it cannot share an
 > environment with anything needing Transformers 5.x — Qwen3-ASR in particular.
 > Its vendored modeling code targets Transformers' *internal* authoring API, and
 > eight of those internals changed in 5.x.
+
+> So far, it seems the original Qwen3-TTS has been abandoned.
 >
 > **This fork requires `transformers>=5.9,<6`. If you are on 4.57.x, use upstream
 > `qwen-tts` — it already works there, and this fork will not.** The import
 > package is still `qwen_tts`, so it is otherwise a drop-in replacement.
->
-> **Verified, not assumed:** the same text, reference clip and seed synthesized
-> under 4.57.3 (upstream) and 5.14.1 (this fork) are compared sample-by-sample.
-> On Apple MPS the output is **bit-identical**. On CUDA it matches to within
-> bfloat16 kernel nondeterminism under both SDPA and FlashAttention 2.
->
-> **Known limitation:** the 25 Hz speech tokenizer is not registered, so only the
-> 12 Hz models load. Porting and testing 25 Hz is outstanding work.
->
-> **Gotcha, not caused by this fork:** on Apple MPS, Transformers 5.x's threaded
-> weight loader livelocks in PyTorch's Metal shader cache. Set
-> `transformers.core_model_loading.GLOBAL_WORKERS = 1` before loading.
->
-> Upstream appears stalled on this: the pin fix has been open as
-> [PR #157](https://github.com/QwenLM/Qwen3-TTS/pull/157) since February 2026 and
-> the reports ([#156](https://github.com/QwenLM/Qwen3-TTS/issues/156),
-> [#237](https://github.com/QwenLM/Qwen3-TTS/issues/237)) were closed by a
-> staleness bot. These changes are offered upstream; if they land, delete this
-> fork.
->
-> Portions of the port derive from
-> [zerochocobo/VR-Video-Toolbox-CE](https://github.com/zerochocobo/VR-Video-Toolbox-CE)
-> (`tool_si/_vendor/qwen_tts`), Apache-2.0.
 
 # Qwen3-TTS
 
@@ -53,8 +31,9 @@
 
 We release **Qwen3-TTS**, a series of powerful speech generation capabilities developed by Qwen, offering comprehensive support for voice clone, voice design, ultra-high-quality human-like speech generation, and natural language-based voice control. It provides developers and users with the most extensive set of speech generation features available.
 
-
 ## News
+
+* 2026.7.25: Support for Transformers 5.x is added.
 * 2026.1.22: 🎉🎉🎉 We have released [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) series (0.6B/1.7B) based on Qwen3-TTS-Tokenizer-12Hz. Please check our [blog](https://qwen.ai/blog?id=qwen3tts-0115)!
 
 ## Contents <!-- omit in toc -->

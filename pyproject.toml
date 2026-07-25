@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "qwen-tts-compat"
 version = "0.1.1.post1"
-description = "Unofficial Qwen3-TTS fork that runs on Transformers 5.x"
+description = "Unofficial Qwen3-TTS fork that adds support for Transformers 5.x"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
@@ -16,13 +16,17 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 license = { text = "Apache-2.0" }
-authors = [{ name = "Alibaba Qwen Team" }]
+# Original work by the Qwen team; this fork is maintained separately and is
+# not published, endorsed or supported by Alibaba.
+authors = [{ name = "Cezar Cocu" }]
+maintainers = [{ name = "Cezar Cocu" }]
 
 dependencies = [
-  # This fork exists to run on Transformers 5.x, so it requires it. Verified on
-  # 5.14.1; 5.9 is the lowest release these changes have been reported against.
+  # Floor is where synthesis was verified end to end, not where the code looks
+  # like it should work: 5.6.0 passes, while 5.4.0 and below fail inside
+  # Transformers' own tokenizer stack rather than in this package.
   # For Transformers 4.57.x, use upstream `qwen-tts` instead.
-  "transformers>=5.9,<6",
+  "transformers>=5.6,<6",
   "accelerate>=1.12.0",
   "gradio",
   "librosa",
@@ -34,9 +38,12 @@ dependencies = [
 ]
 
 [project.urls]
-# Upstream points at github.com/Qwen/Qwen3-TTS, which does not exist.
-Homepage = "https://github.com/QwenLM/Qwen3-TTS"
-Repository = "https://github.com/QwenLM/Qwen3-TTS"
+Homepage = "https://github.com/cezarc1/qwen-tts-compat"
+Repository = "https://github.com/cezarc1/qwen-tts-compat"
+Issues = "https://github.com/cezarc1/qwen-tts-compat/issues"
+# The upstream project this forks. Report model bugs there, packaging and
+# Transformers 5.x issues here.
+"Upstream project" = "https://github.com/QwenLM/Qwen3-TTS"
 
 [project.scripts]
 qwen-tts-demo = "qwen_tts.cli.demo:main"
