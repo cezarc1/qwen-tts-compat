@@ -28,7 +28,6 @@ dependencies = [
   # For Transformers 4.57.x, use upstream `qwen-tts` instead.
   "transformers>=5.6,<6",
   "accelerate>=1.12.0",
-  "gradio",
   "librosa",
   "torchaudio",
   "soundfile",
@@ -36,6 +35,12 @@ dependencies = [
   "onnxruntime",
   "einops",
 ]
+
+[project.optional-dependencies]
+# Only `qwen-tts-demo` needs Gradio, and it pulls ~50 transitive packages
+# including a full web stack (fastapi, uvicorn, starlette, python-multipart).
+# Keeping it out of the default install keeps that surface off library users.
+demo = ["gradio"]
 
 [project.urls]
 Homepage = "https://github.com/cezarc1/qwen-tts-compat"

@@ -23,7 +23,13 @@ import tempfile
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
-import gradio as gr
+try:
+    import gradio as gr
+except ModuleNotFoundError as exc:  # pragma: no cover - depends on install extras
+    raise SystemExit(
+        "qwen-tts-demo needs Gradio, which is not installed by default.\n"
+        "Install it with:  pip install 'qwen-tts-compat[demo]'"
+    ) from exc
 import numpy as np
 import torch
 

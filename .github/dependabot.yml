@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # SHA-pinned actions are immutable, which is the point — but it also means they
+  # never pick up security fixes on their own. Dependabot rewrites the pins (and
+  # the accompanying version comments) so they stay current and reviewable.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
