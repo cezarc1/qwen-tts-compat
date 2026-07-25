@@ -12,11 +12,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from transformers.configuration_utils import PretrainedConfig, layer_type_validation
-from transformers.modeling_rope_utils import rope_config_validation
+from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
+
+
+def _validate_rope_config(config: PretrainedConfig) -> None:
+    standardize = getattr(config, "standardize_rope_params", None)
+    validate = getattr(config, "validate_rope", None)
+    if callable(standardize) and callable(validate):
+        standardize()
+        validate()
+        return
+
+    from transformers.modeling_rope_utils import rope_config_validation
+
+    rope_config_validation(config)
+
+
+def _validate_layer_types(config: PretrainedConfig) -> None:
+    validate = getattr(config, "validate_layer_type", None)
+    if callable(validate):
+        validate()
+        return
+
+    from transformers.configuration_utils import layer_type_validation
+
+    layer_type_validation(config.layer_types, getattr(config, "num_hidden_layers", None))
 
 
 class Qwen3TTSSpeakerEncoderConfig(PretrainedConfig):
@@ -242,7 +265,7 @@ class Qwen3TTSTalkerCodePredictorConfig(PretrainedConfig):
         # BC: if there is a 'type' field, move it to 'rope_type'.
         if self.rope_scaling is not None and "type" in self.rope_scaling:
             self.rope_scaling["rope_type"] = self.rope_scaling["type"]
-        rope_config_validation(self)
+        _validate_rope_config(self)
 
         self.layer_types = layer_types
         if self.layer_types is None:
@@ -252,7 +275,7 @@ class Qwen3TTSTalkerCodePredictorConfig(PretrainedConfig):
                 else "full_attention"
                 for i in range(self.num_hidden_layers)
             ]
-        layer_type_validation(self.layer_types)
+        _validate_layer_types(self)
         self.num_code_groups = num_code_groups
 
 
@@ -402,8 +425,12 @@ class Qwen3TTSTalkerConfig(PretrainedConfig):
         codec_language_id=None,
         **kwargs,
     ):
+        pad_token_id = kwargs.pop("pad_token_id", None)
+        if pad_token_id is None:
+            pad_token_id = codec_pad_id
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
+            pad_token_id=pad_token_id,
             **kwargs,
         )
         self.vocab_size = vocab_size

@@ -115,10 +115,59 @@ class Qwen3TTSModel:
                 f"AutoModel returned {type(model)}, expected Qwen3TTSForConditionalGeneration. "
             )
 
+        # transformers >= 5.x silently fails to load a small set of weights for this model
+        # (observed: `talker.text_projection.linear_fc[12].bias`). HF's loader marks them as
+        # "loaded" but leaves the actual tensor at the `_init_weights` zero baseline, which
+        # destroys the text→talker projection and degrades the talker into a pure language-model
+        # prior (the "感谢观看" failure mode). Re-merge the safetensors checkpoint(s) directly to
+        # ensure every checkpoint key reaches the corresponding parameter.
+        cls._merge_safetensors_into_model(model, pretrained_model_name_or_path)
+
         processor = AutoProcessor.from_pretrained(pretrained_model_name_or_path, fix_mistral_regex=True,)
 
         generate_defaults = model.generate_config
         return cls(model=model, processor=processor, generate_defaults=generate_defaults)
+
+    @staticmethod
+    def _merge_safetensors_into_model(model, pretrained_model_name_or_path) -> None:
+        """Force-load every key from the local safetensors checkpoint(s) into ``model``.
+
+        Used to work around transformers >= 5.x silently dropping a handful of bias tensors
+        for this architecture. Only operates on local directories — remote/cached resolution
+        is left to the upstream loader.
+        """
+        import os
+        import glob
+        try:
+            from safetensors import safe_open
+        except Exception:
+            return
+
+        path_str = str(pretrained_model_name_or_path)
+        if not os.path.isdir(path_str):
+            return
+
+        shard_paths = sorted(glob.glob(os.path.join(path_str, "*.safetensors")))
+        if not shard_paths:
+            return
+
+        target_state = model.state_dict()
+        target_keys = set(target_state.keys())
+
+        for shard in shard_paths:
+            with safe_open(shard, framework="pt") as f:
+                for key in f.keys():
+                    if key not in target_keys:
+                        continue
+                    src = f.get_tensor(key)
+                    dst = target_state[key]
+                    if dst.device.type == "meta":
+                        continue
+                    if tuple(src.shape) != tuple(dst.shape):
+                        continue
+                    src = src.to(device=dst.device, dtype=dst.dtype)
+                    with torch.no_grad():
+                        dst.copy_(src)
 
     def _supported_languages_set(self) -> Optional[set]:
         langs = getattr(self.model, "get_supported_languages", None)

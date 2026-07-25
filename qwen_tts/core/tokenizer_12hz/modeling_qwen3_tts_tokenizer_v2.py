@@ -27,27 +27,36 @@ from transformers import MimiConfig, MimiModel
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
 from transformers.integrations import use_kernel_forward_from_hub
+from transformers.masking_utils import (
+    create_causal_mask,
+    create_sliding_window_causal_mask,
+)
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_layers import GradientCheckpointingLayer
 from transformers.modeling_outputs import BaseModelOutputWithPast
-from transformers.modeling_rope_utils import dynamic_rope_update
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import ModelOutput, auto_docstring, logging
 from transformers.utils.deprecation import deprecate_kwarg
+from transformers.utils.generic import merge_with_config_defaults
 
-from .._compat import (
-    check_model_inputs,
-    create_causal_mask,
-    create_sliding_window_causal_mask,
-    rope_init_fn,
-)
 from .configuration_qwen3_tts_tokenizer_v2 import (
     Qwen3TTSTokenizerV2Config,
     Qwen3TTSTokenizerV2DecoderConfig,
 )
 
 logger = logging.get_logger(__name__)
+
+
+if "default" not in ROPE_INIT_FUNCTIONS and "proportional" in ROPE_INIT_FUNCTIONS:
+    ROPE_INIT_FUNCTIONS["default"] = ROPE_INIT_FUNCTIONS["proportional"]
+
+
+def check_model_inputs(func=None):
+    if func is None:
+        return merge_with_config_defaults
+    return merge_with_config_defaults(func)
 
 
 @dataclass
@@ -135,6 +144,12 @@ def eager_attention_forward(
     attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
     if attention_mask is not None:
         causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
+        if causal_mask.shape[-2] != attn_weights.shape[-2]:
+            causal_mask = causal_mask[:, :, -attn_weights.shape[-2]:, :]
+        if causal_mask.shape[-1] < attn_weights.shape[-1]:
+            causal_mask = F.pad(causal_mask, (attn_weights.shape[-1] - causal_mask.shape[-1], 0), value=0.0)
+        elif causal_mask.shape[-1] > attn_weights.shape[-1]:
+            causal_mask = causal_mask[:, :, :, -attn_weights.shape[-1]:]
         attn_weights = attn_weights + causal_mask
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
@@ -258,15 +273,29 @@ class Qwen3TTSTokenizerV2DecoderRotatoryEmbedding(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = rope_init_fn(self.rope_type)
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self.original_inv_freq = self.inv_freq
 
+    def _ensure_inv_freq(self, ref_tensor):
+        # transformers>=5 + `from_pretrained(device_map=...)` materialises non-persistent buffers
+        # as zero tensors on the target device, which makes all RoPE frequencies zero. Recompute
+        # on first forward if we detect that situation.
+        import torch as _torch
+        buf = self.inv_freq
+        if buf is None or buf.device.type == "meta" or not _torch.is_floating_point(buf) or buf.numel() == 0 \
+                or not bool(_torch.any(buf != 0).item()):
+            inv_freq, self.attention_scaling = self.rope_init_fn(self.config, ref_tensor.device)
+            inv_freq = inv_freq.to(device=ref_tensor.device)
+            self.inv_freq = inv_freq
+            self.original_inv_freq = inv_freq
+
     @torch.no_grad()
     @dynamic_rope_update  # power user: used with advanced RoPE types (e.g. dynamic rope)
     def forward(self, x, position_ids):
+        self._ensure_inv_freq(x)
         inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1).to(x.device)
         position_ids_expanded = position_ids[:, None, :].float()
 
@@ -498,7 +527,6 @@ class Qwen3TTSTokenizerV2DecoderTransformerModel(Qwen3TTSTokenizerV2DecoderPreTr
         self.post_init()
 
     @check_model_inputs()
-    @auto_docstring
     def forward(
         self,
         input_ids=None,
@@ -537,9 +565,8 @@ class Qwen3TTSTokenizerV2DecoderTransformerModel(Qwen3TTSTokenizerV2DecoderPreTr
             # Prepare mask arguments
             mask_kwargs = {
                 "config": self.config,
-                "input_embeds": inputs_embeds,
+                "inputs_embeds": inputs_embeds,
                 "attention_mask": attention_mask,
-                "cache_position": cache_position,
                 "past_key_values": past_key_values,
                 "position_ids": position_ids,
             }

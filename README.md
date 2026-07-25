@@ -1,27 +1,40 @@
-> ## ⚠️ Unofficial fork — Transformers 5.x support
->
-> **Status: work in progress.** Not yet usable on Transformers 5.x. Use upstream
-> until this line is gone.
+> ## ⚠️ Unofficial fork — requires Transformers 5.x
 >
 > Not the official repository; that is
 > [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS). No affiliation with or
 > endorsement by Alibaba or the Qwen team.
 >
-> Upstream hard-pins `transformers==4.57.3`, so Qwen3-TTS cannot share an
-> environment with anything that needs Transformers 5.x — Qwen3-ASR in
-> particular. This fork relaxes the pin to `>=4.57.3,<6` and shims the changed
-> 5.x internals in [`qwen_tts/core/_compat.py`](qwen_tts/core/_compat.py). Every
-> shim is a pass-through on 4.57.x, so **4.x behaviour is unchanged**.
+> Upstream `qwen-tts` hard-pins `transformers==4.57.3`, so it cannot share an
+> environment with anything needing Transformers 5.x — Qwen3-ASR in particular.
+> Its vendored modeling code targets Transformers' *internal* authoring API, and
+> eight of those internals changed in 5.x.
 >
-> The two-line pin fix has been open upstream as
-> [PR #157](https://github.com/QwenLM/Qwen3-TTS/pull/157) since February 2026,
-> and the issues reporting this
-> ([#156](https://github.com/QwenLM/Qwen3-TTS/issues/156),
+> **This fork requires `transformers>=5.9,<6`. If you are on 4.57.x, use upstream
+> `qwen-tts` — it already works there, and this fork will not.** The import
+> package is still `qwen_tts`, so it is otherwise a drop-in replacement.
+>
+> **Verified, not assumed:** the same text, reference clip and seed synthesized
+> under 4.57.3 (upstream) and 5.14.1 (this fork) are compared sample-by-sample.
+> On Apple MPS the output is **bit-identical**. On CUDA it matches to within
+> bfloat16 kernel nondeterminism under both SDPA and FlashAttention 2.
+>
+> **Known limitation:** the 25 Hz speech tokenizer is not registered, so only the
+> 12 Hz models load. Porting and testing 25 Hz is outstanding work.
+>
+> **Gotcha, not caused by this fork:** on Apple MPS, Transformers 5.x's threaded
+> weight loader livelocks in PyTorch's Metal shader cache. Set
+> `transformers.core_model_loading.GLOBAL_WORKERS = 1` before loading.
+>
+> Upstream appears stalled on this: the pin fix has been open as
+> [PR #157](https://github.com/QwenLM/Qwen3-TTS/pull/157) since February 2026 and
+> the reports ([#156](https://github.com/QwenLM/Qwen3-TTS/issues/156),
 > [#237](https://github.com/QwenLM/Qwen3-TTS/issues/237)) were closed by a
-> staleness bot rather than fixed — hence the fork. These changes are offered
-> upstream; if they land, delete this fork.
+> staleness bot. These changes are offered upstream; if they land, delete this
+> fork.
 >
-> The import package is still `qwen_tts`, so this is a drop-in replacement.
+> Portions of the port derive from
+> [zerochocobo/VR-Video-Toolbox-CE](https://github.com/zerochocobo/VR-Video-Toolbox-CE)
+> (`tool_si/_vendor/qwen_tts`), Apache-2.0.
 
 # Qwen3-TTS
 
