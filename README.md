@@ -1,18 +1,32 @@
 > ## ⚠️ Unofficial fork — Adds support for Transformers 5.x
 >
 > Not the official repository; that is
-> [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS). No affiliation with the Alibaba or the Qwen team.
+> [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS). No affiliation with Alibaba or the Qwen team.
 >
 > Upstream `qwen-tts` hard-pins `transformers==4.57.3`, so it cannot share an
 > environment with anything needing Transformers 5.x — Qwen3-ASR in particular.
 > Its vendored modeling code targets Transformers' *internal* authoring API, and
 > eight of those internals changed in 5.x.
-
+>
 > So far, it seems the original Qwen3-TTS has been abandoned.
 >
-> **This fork requires `transformers>=5.9,<6`. If you are on 4.57.x, use upstream
-> `qwen-tts` — it already works there, and this fork will not.** The import
-> package is still `qwen_tts`, so it is otherwise a drop-in replacement.
+> **This fork requires `transformers>=5.6,<6`. If you are on 4.57.x, use upstream
+> `qwen-tts` — it already works there, and this fork will not.**
+>
+> ```bash
+> pip install qwen-tts-compat        # or: uv add qwen-tts-compat
+> ```
+>
+> The distribution is `qwen-tts-compat`, but the import package is still
+> `qwen_tts`, so it is a drop-in replacement — no code changes:
+>
+> ```python
+> from qwen_tts import Qwen3TTSModel   # unchanged
+> ```
+>
+> Do not install both this and `qwen-tts`: they provide the same import package
+> and whichever landed last wins. The Gradio demo lives behind an extra,
+> `pip install 'qwen-tts-compat[demo]'`.
 
 # Qwen3-TTS
 
@@ -132,14 +146,17 @@ conda activate qwen3-tts
 then run:
 
 ```bash
-pip install -U qwen-tts
+pip install -U qwen-tts-compat
 ```
+
+> Upstream's instructions say `pip install -U qwen-tts`. In *this* fork that is
+> the wrong package — it pins `transformers==4.57.3` and will not run on 5.x.
 
 If you want to develop or modify the code locally, install from source in editable mode.
 
 ```bash
-git clone https://github.com/QwenLM/Qwen3-TTS.git
-cd Qwen3-TTS
+git clone https://github.com/cezarc1/qwen-tts-compat.git
+cd qwen-tts-compat
 pip install -e .
 ```
 
